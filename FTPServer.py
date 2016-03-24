@@ -18,7 +18,7 @@ def main():
 
     # Handling the argument
     arg = sys.argv
-    if len(arg) < 3 or len(arg) > 4:
+    if len(arg) != 3:
         print 'Invalid command. Please try again.'
         sys.exit()
 
@@ -36,30 +36,29 @@ def main():
         sys.exit()
 
     #Server IP address
-    serverIP = arg[2]
+    serverIP = '127.0.0.1'
     # validate
     if not _validIP(serverIP):
         print 'IP address is not valid, please try again'
         sys.exit()
 
+    window = arg[2]
     # netEmu port number
-    try:
-        netEmuPort = int(arg[3])
-    except ValueError:
-        print 'Invalid command. Please try again.'
-        sys.exit()
+    # try:
+    #     netEmuPort = int(arg[3])
+    # except ValueError:
+    #     print 'Invalid command. Please try again.'
+    #     sys.exit()
     # validate
-    if not 0 < netEmuPort < 65536:
-        print 'Invalid port number. Please try again.'
-        sys.exit()
+    # if not 0 < netEmuPort < 65536:
+    #     print 'Invalid port number. Please try again.'
+    #     sys.exit()
 
-    # Dest. port number
-    desPort = hostPort - 1
 
-    rxpProtocol = RxP(serverIP, netEmuPort, hostPort, desPort, log)
+    rxpProtocol = RxP(serverIP, 8000, 0, 0, None, False)
     serverProtocol = RecvThread(rxpProtocol)
     serverProtocol.start()
-
+    rxpProtocol.setWindowSize(window)
     # execute user's commend
     while (True):
         Sinput = raw_input("type Window W - to change the window size \n"
@@ -67,15 +66,15 @@ def main():
         if "window" in Sinput:
             s = Sinput.split()
             try:
-                wsize = int(s[1])
+                window = int(s[1])
             except ValueError:
                 print 'Invalid window size. Please try again.'
                 sys.exit()
-            if not 0 < wsize < 50:
+            if not 0 < window < 50:
                 print 'Window size too big. Please try again.'
                 sys.exit()
-            print "Set window size to " + str(wsize)
-            rxpProtocol.setWindowSize(wsize)
+            print "Set window size to " + str(window)
+            rxpProtocol.setWindowSize(window)
         # close server
         elif Sinput.__eq__("terminate"):
             rxpProtocol.close()

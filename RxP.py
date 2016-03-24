@@ -14,14 +14,19 @@ class RxP:
     dataMax = 255  # total bytes in a packet
 
     # refer to rxpHeader class for more info
-    def __init__(self, hostAddress, emuPort, hostPort, destPort, filename):
-        self.netEmuPort = emuPort
+    def __init__(self, hostAddress, hostPort, destAddress, destPort, udpSocket, isClientSocket):
+        self.dict = dict()
         self.hostAddress = hostAddress
+        self.destAddress = destAddress
         self.hostPort = hostPort
         self.destPort = destPort
-        self.socket = socket(AF_INET, SOCK_DGRAM)
-        self.socket.bind((self.hostAddress, self.hostPort))
-        self.header = RxPHeader(hostPort, destPort, 0, 0)
+        self.isClientSocket = isClientSocket
+        if (udpSocket is None) :
+            self.socket = socket(AF_INET, SOCK_DGRAM)
+            self.socket.bind((self.hostAddress, self.hostPort))
+        else :
+            self.socket = udpSocket
+        self.header = RxPHeader(destPort, destPort, 0, 0)
         self.cntBit = 0  # stands for connection state(3 way handshake)
         self.getBit = 0  # get file
         self.postBit = 0  # post file
@@ -102,27 +107,43 @@ class RxP:
         while True and not event.stopped():
             self.socket.settimeout(1)
             try:
-                recvPacket, address = self.socket.recvfrom(1024)
+                recvPacket, address = self.socket.recvfrom(900)
             except IOError:
                 continue
             packet = bytearray(recvPacket)
-
+            
             if self.validateChecksum(packet):
-                tempHeader = self.getHeader(packet)
+                clientSocket = None
+                if self.isClientSocket:
+                    clientSocket = self
+                else:
+                    clientSocket = self.accept(address)
+
+                tempHeader = clientSocket.getHeader(packet)
                 if tempHeader.cnt:
                     print 'Received control packet'
-                    self.recvCntPkt(packet)
+                    clientSocket.recvCntPkt(packet)
                 elif tempHeader.get:
                     print 'Received get packet'
-                    self.recvGetPkt(packet)
+                    clientSocket.recvGetPkt(packet)
                 elif tempHeader.post:
                     print 'Received post packet'
-                    self.recvPostPkt(packet)
+                    clientSocket.recvPostPkt(packet)
                 elif tempHeader.dat:
                     print 'Received data packet'
-                    self.recvDataPkt(packet)
+                    clientSocket.recvDataPkt(packet)
             else:
                 print 'Received corrupted data, packet dropped.'
+
+    def accept(self, address):
+        clientSocket = None
+        if address in self.dict:
+            clientSocket = self.dict[address]
+        else:
+            clientSocket = RxP(self.hostAddress, self.hostPort, address[0], address[1], self.socket, True)
+            self.dict[address] = clientSocket
+            print 'create clientSocket'
+        return clientSocket
 
     # reset all setting
     def reset(self):
@@ -167,7 +188,7 @@ class RxP:
         self.header.ack = False
         datagram = self.pack(self.header.getHeader(), data)
         datagram = self.addChecksum(datagram)
-        self.socket.sendto(datagram, (self.hostAddress, self.destPort))
+        self.socket.sendto(datagram, (self.destAddress, self.destPort))
 
     # Getting header's ack number and add check sum to this ack number then
     # send new ACK through UDP socket
@@ -175,7 +196,7 @@ class RxP:
         print 'acking num: %d' % self.header.ackNum
         self.header.ack = True
         datagram = self.addChecksum(self.header.getHeader())
-        self.socket.sendto(datagram, (self.hostAddress, self.destPort))
+        self.socket.sendto(datagram, (self.destAddress, self.destPort))
 
     # Getting the header information from received data
     def getHeader(self, datagram):

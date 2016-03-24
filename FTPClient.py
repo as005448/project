@@ -14,46 +14,32 @@ from threads import RecvThread, SendThread
 # Disconnect - close the connection
 
 def main():
-
+    window = 2
     rxpProtocol = None
 
     # Handling the argument
     arg = sys.argv
-    if len(arg) < 3 or len(arg) > 4:
+    if len(arg) != 3:
         print 'Invalid command. Please try again.'
         sys.exit()
 
-    # pass the command line arguments
-    try:
-        clientPort = int(arg[1])
-    except ValueError:
-        print 'Invalid command. Please try again.'
-        sys.exit()
-    # validate
-    if not 0 < clientPort < 65536:
-        print 'Invalid port number. Please try again.'
-        sys.exit()
+    arg1 = arg[1].split(":")
 
     # Server IP address
-    serverIP = arg[2]
+    serverIP = arg1[0];
 
     if not _validIP(serverIP):
         print 'IP address is not valid, please try again'
         sys.exit()
 
-    # netEmu port number
-    try:
-        netEmuPort = int(arg[3])
-    except ValueError:
-        print 'Invalid command. Please try again.'
-        sys.exit()
-    # validate
-    if not 0 < netEmuPort < 65536:
+        # Dest. port number
+    desPort = int(arg1[1])
+    if not 0 < desPort < 65536:
         print 'Invalid port number. Please try again.'
         sys.exit()
 
-    # Dest. port number
-    desPort = clientPort + 1
+    window = int(arg[2])
+
 
     log = "output-client.txt"
 
@@ -62,7 +48,7 @@ def main():
 
     connThread = None
     sThread = None
-
+    hostAddress = '127.0.0.2'
     #execute user's commend
     while True:
         time.sleep(.500)
@@ -73,10 +59,11 @@ def main():
                     + "disconnect - to close the connection\n"
                     + 'quit - to quit the application\n')
         if Sinput.__eq__("connect"):
-            rxpProtocol = RxP(serverIP, netEmuPort, clientPort, desPort, log)
+            rxpProtocol = RxP(hostAddress, 8888, serverIP, desPort, None, True)
             clientProtocol = RecvThread(rxpProtocol)
             clientProtocol.start()
             rxpProtocol.connect()
+            rxpProtocol.setWindowSize(window)
         # get file form server
         elif "get" in Sinput:
             if rxpProtocol != None:
