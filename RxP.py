@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import time, sys
 from rxpHeader import RxPHeader
 from rxpTimer import RxPTimer
 from rxpWindow import RxPWindow
@@ -8,6 +8,7 @@ from socket import *
 from collections import deque
 from crc import crc16xmodem
 import unicodedata, sys
+import Queue
 
 
 class RxP:
@@ -36,7 +37,9 @@ class RxP:
         self.output = None  # output file
         self.recvFileIndex = 0  # current index of receiving file
         self.threads = []  # supports multiple get request
-
+        self.timeout = 3 * 60
+        self.newConnectionQueue = Queue.Queue()
+        self.messageQueue = Queue.Queue()
     #  When user type in "connect" command Establish handshake connection with
     #  host by sending SYN messages. Handling the time out situation 
     #  cntBit = 0 : listening for connection 
@@ -117,7 +120,7 @@ class RxP:
                 if self.isClientSocket:
                     clientSocket = self
                 else:
-                    clientSocket = self.accept(address)
+                    clientSocket = self.acceptPackage(address)
 
                 tempHeader = clientSocket.getHeader(packet)
                 if tempHeader.cnt:
@@ -135,16 +138,46 @@ class RxP:
             else:
                 print 'Received corrupted data, packet dropped.'
 
-    def accept(self, address):
+    def acceptPackage(self, address):
         clientSocket = None
         if address in self.dict:
             clientSocket = self.dict[address]
         else:
             clientSocket = RxP(self.hostAddress, self.hostPort, address[0], address[1], self.socket, True)
             self.dict[address] = clientSocket
-            print 'create clientSocket'
+            self.newConnectionQueue.put(address)
+            print 'create ClientSocket'
         return clientSocket
 
+    def accept(self):
+        
+        while True:
+            time.sleep(1)
+            if not self.newConnectionQueue.empty():
+                address = self.newConnectionQueue.get()
+                clientSocket = self.dict[address]
+                if clientSocket.cntBit == 2:
+                    return clientSocket
+                else:
+                    self.newConnectionQueue.put(clientSocket)
+
+    def setTimeOut(self, timeout):
+        self.timeout = timeout
+
+    def recv(self):
+        timeout = time.time() + self.timeout
+        while True:
+            if time.time() > timeout:
+                raise RuntimeError()
+            if not self.messageQueue.empty():
+                return self.messageQueue.get()
+
+    def sendAll(self, data):
+        self.header.ack = False
+        self.header.post = True
+        datagram = self.pack(self.header.getHeader(), data)
+        datagram = self.addChecksum(datagram)
+        self.socket.sendto(datagram, (self.destAddress, self.destPort))
     # reset all setting
     def reset(self):
         self.rxpWindow = RxPWindow()
@@ -177,6 +210,31 @@ class RxP:
                     print 'Resend Get request'
                     self.rxpTimer.start()
             print 'Start to receive file'
+
+        else:
+            print 'No connection found'
+
+    #  client uses getData method to get data from server side protocol sends
+    #  the requested file to client side
+    def getData(self, query):
+        if self.cntBit == 2:
+            nameBytes = bytearray(query)
+            self.header.get = True
+            self.header.seqNum = 0
+            self.send(nameBytes)
+            self.header.get = False
+            print 'Sending Get request'
+            self.rxpTimer.start()
+
+            while self.getBit == 0:
+                if self.rxpTimer.isTimeout():
+                    self.header.get = True
+                    self.header.seqNum = 0
+                    self.send(nameBytes)
+                    self.header.get = False
+                    print 'Resend Get request'
+                    self.rxpTimer.start()
+            print 'Query sent'
 
         else:
             print 'No connection found'
@@ -357,6 +415,14 @@ class RxP:
 
     # Handle post file packet
     def recvPostPkt(self, packet):
+
+        
+        content = packet[RxPHeader.headerLen:]
+        query = self.bytesToString(content)
+        if "queryExecution" in query:
+            self.messageQueue.put(query)
+            return
+
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
         self.header.ackNum = seq
