@@ -48,7 +48,7 @@ def main() :
             # execute query and send back result
             print data[17::]
             result = execute(data[17::])
-            clientSocket.sendAll(result + "\n")
+            clientSocket.sendAll(result)
         except Exception, exc:
             print(traceback.format_exc())
     
@@ -76,6 +76,6 @@ def execute(query) :
 
         ret += col + ': ' + row[col] + ', '
     
-    return ret[:-2]
+    return bytearray(ret[:-2], 'utf8')
 
 if __name__ == "__main__": main()

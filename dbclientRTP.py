@@ -49,7 +49,7 @@ def main() :
             # receive data and server address
             data = rxpProtocol.recv()
             # print what we get from server
-            print data.replace("\n", "")
+            print data[17::]
             break
         except Exception :
             # when timeout, we re-try for three times
