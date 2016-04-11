@@ -13,7 +13,7 @@ class RecvThread(threading.Thread):
     # stop the thread to listen incoming data
     def stop(self):
         self._stop.set()
-        print self._stop.isSet()
+        self._stop.isSet()
 
     def stopped(self):
         return self._stop.isSet()

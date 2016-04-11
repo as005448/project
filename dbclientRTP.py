@@ -39,10 +39,18 @@ def main() :
     rxpProtocol = RxP(hostAddress, 8888, serverIP, desPort, None, True)
     clientProtocol = RecvThread(rxpProtocol)
     clientProtocol.start()
-    rxpProtocol.connect()
+    try:
+        rxpProtocol.connect()
+    except Exception, e:
+        print e
+        clientProtocol.stop()
+        rxpProtocol.socket.close()
+        rxpProtocol = None
+        return
+
     rxpProtocol.setWindowSize(window)
     rxpProtocol.setTimeOut(2)
-    while True :
+    while True:
         try:
             # Send data
             rxpProtocol.sendAll(query)
@@ -51,16 +59,8 @@ def main() :
             # print what we get from server
             print data[17::]
             break
-        except Exception :
-            # when timeout, we re-try for three times
-            if tryNumber != 0 :
-                print "The server has not answered in the last two seconds."
-                print "retrying..."
-                tryNumber = tryNumber - 1
-            else :
-                # after three re-try we give up
-                print "error: can not get response"
-                break
+        except Exception, e:
+            print e
     # close socket when we finish
     if rxpProtocol != None:
         rxpProtocol.close()

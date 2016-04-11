@@ -43,7 +43,7 @@ def main() :
             data = clientSocket.recv()
             # if header of message is not "queryExecutionRequest", send error message
             if "queryExecution" not in data:
-                clientSocket.sendAll("(queryExecution) unknow request. please send query execution request\n")
+                clientSocket.sendAll("(queryExecution) unknown request. please send query execution request\n")
                 continue
             # execute query and send back result
             print data[17::]
@@ -64,7 +64,7 @@ def execute(query) :
     
     # handle id not in database
     if query[0] not in database:
-        return '(queryExecution) error: the student ID is not present in this database'
+        return '(queryExecution) From server: the student ID is not present in this database'
         
     row = database[query[0]]
     # loop to output all required attributes
@@ -72,7 +72,7 @@ def execute(query) :
         col = query[coln].lower()
         # handle attribute not in databse
         if col not in row:
-            return '(queryExecution) error: non-existing attribute "' + col + '"'
+            return '(queryExecution) From server: non-existing attribute "' + col + '"'
 
         ret += col + ': ' + row[col] + ', '
     

@@ -4,11 +4,10 @@ from time import time
 
 # RxP Timer class, deal with time out issues
 class RxPTimer:
-    timeout = 0.5
-
+    
     def __init__(self):
         self.time = 0
-
+        self.timeout = 0.6
 
     def start(self):
         self.time = time()
@@ -20,7 +19,7 @@ class RxPTimer:
 
 #   Checks if timeout occurs
     def isTimeout(self):
-        if time() - self.time < RxPTimer.timeout:
+        if time() - self.time < self.timeout:
             return False
         else:
             return True

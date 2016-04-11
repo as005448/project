@@ -2,7 +2,7 @@
 
 # header class for RxP
 class RxPHeader:
-    headerLen = 16 # header length
+    headerLen = 17 # header length
 
     def __init__(self, sourcePort=-1, destPort=-1, seqNum=0, ackNum=0):
         self.sourcePort = sourcePort # The port number of the packet source
@@ -18,7 +18,8 @@ class RxPHeader:
         self.get = False # bit for get file request
         self.post = False # bit for post file request
         self.checksum = 0 # Checksum field
-        self.header = bytearray(16) # Byte array of header for sending
+        self.query = False
+        self.header = bytearray(17) # Byte array of header for sending
 
     # convert all instance variables of RxP header into byte array
     def setHeader(self):
@@ -43,8 +44,6 @@ class RxPHeader:
             self.header[13] = self.header[13] | 0x2
         if self.cnt:
             self.header[13] = self.header[13] | 0x4
-        if self.dat:
-            self.header[13] = self.header[13] | 0x8
         if self.ack:
             self.header[13] = self.header[13] | 0x10
         if self.end:
@@ -53,9 +52,13 @@ class RxPHeader:
             self.header[13] = self.header[13] | 0x40
         if self.post:
             self.header[13] = self.header[13] | 0x80
+        if self.dat:
+            self.header[13] = self.header[13] | 0x8
 
         self.header[14] = self.checksum >> 8
         self.header[15] = self.checksum & 0xFF
+        if self.query:
+            self.header[16] = 0x1
         return self.header
     
     # given a byte array, convert it into a RxPHeader
@@ -82,6 +85,8 @@ class RxPHeader:
         if header[13] & 0x80 == 0x80:
             self.post = True
         self.checksum = header[14] << 8 | (0 | 0xFF) & header[15]
+        if header[16] == 0x1:
+            self.query = True
 
     def getHeader(self):
         return self.setHeader()

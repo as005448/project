@@ -31,6 +31,7 @@ class RxP:
         self.cntBit = 0  # stands for connection state(3 way handshake)
         self.getBit = 0  # get file
         self.postBit = 0  # post file
+        self.queryBit = 0
         self.rxpWindow = RxPWindow()
         self.rxpTimer = RxPTimer()
         self.buffer = deque()  # buffer to store data
@@ -51,24 +52,33 @@ class RxP:
         self.header.seqNum = 0
         self.send(None)
         self.rxpTimer.start()
+        tryNumber = 3
         print 'Send first SYN segment with SYN = 1'
 
-        while self.cntBit == 0:
+        while self.cntBit == 0 and tryNumber != 0:
             if self.rxpTimer.isTimeout():
+                tryNumber = tryNumber - 1
                 self.header.syn = True
                 self.header.seqNum = 0
                 self.send(None)
                 print 'Resend first SYN segment with SYN = 1'
                 self.rxpTimer.start()
 
-        while self.cntBit == 1:
+        if tryNumber == 0 and self.cntBit == 0:
+            raise Exception('can not connect to the server')
+
+        tryNumber = 3
+        while self.cntBit == 1 and tryNumber != 0:
             if self.rxpTimer.isTimeout():
+                tryNumber = tryNumber - 1
                 self.header.syn = False
                 self.header.seqNum = 1
                 self.send(None)
                 print 'Resend segment with SYN = 0'
                 self.rxpTimer.start()
 
+        if tryNumber == 0 and self.cntBit == 1:
+            raise Exception('can not connect to the server')
         self.header.cnt = False
         print '>>>>>>>>>>>Connection established<<<<<<<<<<<<<'
 
@@ -125,7 +135,11 @@ class RxP:
                 tempHeader = clientSocket.getHeader(packet)
                 if tempHeader.cnt:
                     print 'Received control packet'
-                    clientSocket.recvCntPkt(packet)
+                    connectState = clientSocket.recvCntPkt(packet)
+                    if connectState == 2 and not self.isClientSocket:
+                        self.newConnectionQueue.put(self.dict[address])
+                    elif connectState == 3 and not self.isClientSocket:
+                        self.dict.pop(address, None)
                 elif tempHeader.get:
                     print 'Received get packet'
                     clientSocket.recvGetPkt(packet)
@@ -135,6 +149,9 @@ class RxP:
                 elif tempHeader.dat:
                     print 'Received data packet'
                     clientSocket.recvDataPkt(packet)
+                elif tempHeader.query:
+                    print 'Received query packet'
+                    clientSocket.recvQueryPkt(packet)
             else:
                 print 'Received corrupted data, packet dropped.'
 
@@ -145,39 +162,45 @@ class RxP:
         else:
             clientSocket = RxP(self.hostAddress, self.hostPort, address[0], address[1], self.socket, True)
             self.dict[address] = clientSocket
-            self.newConnectionQueue.put(address)
             print 'create ClientSocket'
         return clientSocket
 
     def accept(self):
-        
-        while True:
-            time.sleep(1)
-            if not self.newConnectionQueue.empty():
-                address = self.newConnectionQueue.get()
-                clientSocket = self.dict[address]
-                if clientSocket.cntBit == 2:
-                    return clientSocket
-                else:
-                    self.newConnectionQueue.put(clientSocket)
+        return self.newConnectionQueue.get(block=True)
 
     def setTimeOut(self, timeout):
         self.timeout = timeout
 
     def recv(self):
-        timeout = time.time() + self.timeout
-        while True:
-            if time.time() > timeout:
-                raise RuntimeError()
-            if not self.messageQueue.empty():
-                return self.messageQueue.get()
+        return self.messageQueue.get(block=True, timeout=self.timeout)
 
     def sendAll(self, data):
-        self.header.ack = False
-        self.header.post = True
-        datagram = self.pack(self.header.getHeader(), data)
-        datagram = self.addChecksum(datagram)
-        self.socket.sendto(datagram, (self.destAddress, self.destPort))
+
+        tryNumber = 20
+        if self.cntBit == 2:
+            nameBytes = bytearray(data)
+            self.header.query = True
+            self.header.seqNum = 0
+            self.send(nameBytes)
+            self.header.query = False
+            print 'Sending Query request'
+            self.rxpTimer.start()
+
+            while self.queryBit == 0 and tryNumber != 0:
+                if self.rxpTimer.isTimeout():
+                    tryNumber = tryNumber - 1
+                    self.header.query = True
+                    self.header.seqNum = 0
+                    self.send(nameBytes)
+                    self.header.query = False
+                    print 'Resend Query request'
+                    self.rxpTimer.start()
+
+            if self.queryBit == 0 and tryNumber == 0:
+                raise Exception('send unsuccess')
+        else:
+            print 'No connection found'
+
     # reset all setting
     def reset(self):
         self.rxpWindow = RxPWindow()
@@ -413,16 +436,25 @@ class RxP:
             self.sendAck()
             self.header.get = False
 
+    # Handle query packet
+    def recvQueryPkt(self, packet):
+        tmpHeader = self.getHeader(packet)
+        seq = tmpHeader.seqNum
+        self.header.ackNum = seq
+
+        if tmpHeader.ack:
+            self.queryBit = 1
+        else:
+            content = packet[RxPHeader.headerLen:]
+            query = self.bytesToString(content)
+            self.messageQueue.put(query)
+            self.header.query = True
+            self.sendAck()
+            self.header.query = False
+
     # Handle post file packet
     def recvPostPkt(self, packet):
-
-        
         content = packet[RxPHeader.headerLen:]
-        query = self.bytesToString(content)
-        if "queryExecution" in query:
-            self.messageQueue.put(query)
-            return
-
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
         self.header.ackNum = seq
@@ -446,7 +478,11 @@ class RxP:
     # receive connection establishment packet
     # 3 way handshake
     # closing wait
+    # connectState == 1, nothing special
+    # connectState == 2, connection established
+    # connectState == 3, disconnected
     def recvCntPkt(self, packet):
+        connectState = 1
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
         self.header.ackNum = seq
@@ -473,6 +509,7 @@ class RxP:
                 self.cntBit = 2
                 self.sendAck()
                 self.header.cnt = False
+                connectState = 2
                 print '>>>>>>>>>>>>Connection established<<<<<<<<<<<<<'
             if tmpHeader.seqNum == 0 and tmpHeader.syn:
                 print 'Second SYN initialization'
@@ -503,6 +540,7 @@ class RxP:
                 self.sendAck()
                 self.header.cnt = False
                 self.reset()
+                connectState = 3
                 print '>>>>>>>>>Connection Close<<<<<<<<<<<'
             elif not tmpHeader.seqNum and tmpHeader.fin:
                 self.header.cnt = True
@@ -510,6 +548,7 @@ class RxP:
                 self.header.cnt = False
             elif tmpHeader.ack:
                 self.cntBit = 0
+        return connectState
 
     # set the window size for protocol
     def setWindowSize(self, windowSize):
