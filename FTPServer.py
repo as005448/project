@@ -10,7 +10,7 @@ from threads import RecvThread
 #  start server
 #  Window (w) - change window size, default window size = 2
 #  terminate - terminate the server
-
+# host port, window size
 
 def main():
 
@@ -55,28 +55,14 @@ def main():
     #     sys.exit()
 
 
-    rxpProtocol = RxP(serverIP, 8000, 0, 0, None, False)
+    rxpProtocol = RxP(serverIP, hostPort, 0, 0, None, False)
     serverProtocol = RecvThread(rxpProtocol)
     serverProtocol.start()
     rxpProtocol.setWindowSize(window)
     # execute user's commend
     while (True):
-        Sinput = raw_input("type Window W - to change the window size \n"
-                    + "terminate - to terminate the server\n")
-        if "window" in Sinput:
-            s = Sinput.split()
-            try:
-                window = int(s[1])
-            except ValueError:
-                print 'Invalid window size. Please try again.'
-                sys.exit()
-            if not 0 < window < 50:
-                print 'Window size too big. Please try again.'
-                sys.exit()
-            print "Set window size to " + str(window)
-            rxpProtocol.setWindowSize(window)
-        # close server
-        elif Sinput.__eq__("terminate"):
+        Sinput = raw_input("close - to terminate the server\n")
+        if Sinput.__eq__("close"):
             rxpProtocol.close()
             serverProtocol.stop()
             for thread in rxpProtocol.threads:

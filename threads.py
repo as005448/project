@@ -30,6 +30,7 @@ class SendThread(threading.Thread):
         self.rxp = rxp
         self.filename = filename
         self._stop = threading.Event()
+        self.count = 1
 
     # stop the send thread
     def stop(self):

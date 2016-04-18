@@ -23,17 +23,17 @@ class RxPHeader:
 
     # convert all instance variables of RxP header into byte array
     def setHeader(self):
-        self.header[0] = self.sourcePort >> 8
+        self.header[0] = (self.sourcePort >> 8) & 0xFF
         self.header[1] = self.sourcePort & 0xFF
-        self.header[2] = self.destPort >> 8
+        self.header[2] = (self.destPort >> 8) & 0xFF
         self.header[3] = self.destPort & 0xFF
-        self.header[4] = self.seqNum >> 24
-        self.header[5] = self.seqNum >> 16
-        self.header[6] = self.seqNum >> 8
+        self.header[4] = (self.seqNum >> 24) & 0xFF
+        self.header[5] = (self.seqNum >> 16) & 0xFF
+        self.header[6] = (self.seqNum >> 8) & 0xFF
         self.header[7] = self.seqNum & 0xFF
-        self.header[8] = self.ackNum >> 24
-        self.header[9] = self.ackNum >> 16
-        self.header[10] = self.ackNum >> 8
+        self.header[8] = (self.ackNum) >> 24 & 0xFF
+        self.header[9] = (self.ackNum) >> 16 & 0xFF
+        self.header[10] = (self.ackNum) >> 8 & 0xFF
         self.header[11] = self.ackNum & 0xFF
         self.header[12] = RxPHeader.headerLen & 0xFF
         self.header[13] = 0
@@ -55,7 +55,7 @@ class RxPHeader:
         if self.dat:
             self.header[13] = self.header[13] | 0x8
 
-        self.header[14] = self.checksum >> 8
+        self.header[14] = (self.checksum >> 8) & 0xFF
         self.header[15] = self.checksum & 0xFF
         if self.query:
             self.header[16] = 0x1

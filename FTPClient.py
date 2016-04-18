@@ -48,23 +48,28 @@ def main():
 
     connThread = None
     sThread = None
-    hostAddress = '127.0.0.2'
+    hostAddress = '127.0.0.3'
+    # connect
+    rxpProtocol = RxP(hostAddress, 8889, serverIP, desPort, None, True)
+    clientProtocol = RecvThread(rxpProtocol)
+    clientProtocol.start()
+    rxpProtocol.connect()
+    rxpProtocol.setWindowSize(window)
     #execute user's commend
     while True:
         time.sleep(.500)
-        Sinput = raw_input("type connect - to establish connection \n"
-                    + "get 'filename' - to download the file from server \n"
-                    + "post 'filename' - to upload the file to server \n"
-                    + "Window W - to change the window size \n"
+        Sinput = raw_input("get F - to download the file from server \n"
+                    + "post G - to upload the file to server \n"
+                    + "get-post F G - to download F and upload G at same time \n"
                     + "disconnect - to close the connection\n"
                     + 'quit - to quit the application\n')
-        if Sinput.__eq__("connect"):
-            rxpProtocol = RxP(hostAddress, 8888, serverIP, desPort, None, True)
-            clientProtocol = RecvThread(rxpProtocol)
-            clientProtocol.start()
-            rxpProtocol.connect()
-            rxpProtocol.setWindowSize(window)
         # get file form server
+        if "get-post" in Sinput:
+            if rxpProtocol != None:
+                s = Sinput.split(' ')
+                sendThread = SendThread(rxpProtocol, s[2])
+                sendThread.start()
+                rxpProtocol.getFile(s[1])
         elif "get" in Sinput:
             if rxpProtocol != None:
                 s = Sinput.split()
@@ -75,20 +80,6 @@ def main():
                 s = Sinput.split()
                 sendThread = SendThread(rxpProtocol, s[1])
                 sendThread.start()
-        # set the window size
-        elif "window" in Sinput:
-            if rxpProtocol != None:
-                s = Sinput.split()
-                try:
-                    window = int(s[1])
-                except ValueError:
-                    print 'Invalid window size. Please try again.'
-                    sys.exit()
-                if not 0 < window < 50:
-                    print 'Window size too big. Please try again.'
-                    sys.exit()
-                print "Set window size to " + str(window)
-                rxpProtocol.setWindowSize(window)
         #close connection
         elif Sinput.__eq__("disconnect"):
             if rxpProtocol != None:

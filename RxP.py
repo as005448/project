@@ -9,7 +9,7 @@ from collections import deque
 from crc import crc16xmodem
 import unicodedata, sys
 import Queue
-
+import threading
 
 class RxP:
     dataMax = 255  # total bytes in a packet
@@ -41,6 +41,7 @@ class RxP:
         self.timeout = 3 * 60
         self.newConnectionQueue = Queue.Queue()
         self.messageQueue = Queue.Queue()
+        self.lock = threading.Lock()
     #  When user type in "connect" command Establish handshake connection with
     #  host by sending SYN messages. Handling the time out situation 
     #  cntBit = 0 : listening for connection 
@@ -124,7 +125,7 @@ class RxP:
             except IOError:
                 continue
             packet = bytearray(recvPacket)
-            
+
             if self.validateChecksum(packet):
                 clientSocket = None
                 if self.isClientSocket:
@@ -160,7 +161,7 @@ class RxP:
         if address in self.dict:
             clientSocket = self.dict[address]
         else:
-            clientSocket = RxP(self.hostAddress, self.hostPort, address[0], address[1], self.socket, True)
+            clientSocket = RxP(self.hostAddress, self.hostPort, address[0], address[1], self.socket, False)
             self.dict[address] = clientSocket
             print 'create ClientSocket'
         return clientSocket
@@ -216,6 +217,7 @@ class RxP:
     #  the requested file to client side
     def getFile(self, filename):
         if self.cntBit == 2:
+            time.sleep(.200)
             nameBytes = bytearray(filename)
             self.header.get = True
             self.header.seqNum = 0
@@ -233,31 +235,6 @@ class RxP:
                     print 'Resend Get request'
                     self.rxpTimer.start()
             print 'Start to receive file'
-
-        else:
-            print 'No connection found'
-
-    #  client uses getData method to get data from server side protocol sends
-    #  the requested file to client side
-    def getData(self, query):
-        if self.cntBit == 2:
-            nameBytes = bytearray(query)
-            self.header.get = True
-            self.header.seqNum = 0
-            self.send(nameBytes)
-            self.header.get = False
-            print 'Sending Get request'
-            self.rxpTimer.start()
-
-            while self.getBit == 0:
-                if self.rxpTimer.isTimeout():
-                    self.header.get = True
-                    self.header.seqNum = 0
-                    self.send(nameBytes)
-                    self.header.get = False
-                    print 'Resend Get request'
-                    self.rxpTimer.start()
-            print 'Query sent'
 
         else:
             print 'No connection found'
@@ -417,10 +394,11 @@ class RxP:
 
     # Handle get file packet
     def recvGetPkt(self, packet):
+        self.lock.acquire()
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
         self.header.ackNum = seq
-
+        
         if tmpHeader.ack:
             self.getBit = 1
         else:
@@ -435,6 +413,7 @@ class RxP:
             self.header.get = True
             self.sendAck()
             self.header.get = False
+        self.lock.release()
 
     # Handle query packet
     def recvQueryPkt(self, packet):
@@ -464,11 +443,16 @@ class RxP:
                 self.postBit = 1
             else:
                 content = packet[RxPHeader.headerLen:]
-                filename = self.bytesToString(content)
+                fileType = self.bytesToString(content).split('.', 1)[1]
+                if self.isClientSocket:
+                    filename = 'get_F' + '.' + fileType
+                else:
+                    filename = 'post_G' + '.' + fileType
+                print filename
                 try:
-                    self.output = open("./down/" + filename, "ab")
+                    self.output = open(filename, "ab")
                 except:
-                    print ("file not found. Please type in correct filename")
+                    print ("file not found. Please type correct filename")
                     sys.exit()
                 self.header.post = True
                 print 'sending post ack'

@@ -36,7 +36,7 @@ def main() :
     hostAddress = '127.0.0.1'
     window = 2
 
-    rxpProtocol = RxP(hostAddress, 8888, serverIP, desPort, None, True)
+    rxpProtocol = RxP(hostAddress, 7778, serverIP, desPort, None, True)
     clientProtocol = RecvThread(rxpProtocol)
     clientProtocol.start()
     try:
