@@ -33,7 +33,7 @@ def main() :
 
     # set timeout for socket 
     desPort = int(address[1])
-    hostAddress = '127.0.0.1'
+    hostAddress = '127.0.0.2'
     window = 2
 
     rxpProtocol = RxP(hostAddress, 7778, serverIP, desPort, None, True)

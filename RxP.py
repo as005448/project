@@ -218,20 +218,24 @@ class RxP:
     def getFile(self, filename):
         if self.cntBit == 2:
             time.sleep(.200)
+            self.lock.acquire()
             nameBytes = bytearray(filename)
             self.header.get = True
             self.header.seqNum = 0
             self.send(nameBytes)
             self.header.get = False
+            self.lock.release()
             print 'Sending Get request'
             self.rxpTimer.start()
 
             while self.getBit == 0:
                 if self.rxpTimer.isTimeout():
+                    self.lock.acquire()
                     self.header.get = True
                     self.header.seqNum = 0
                     self.send(nameBytes)
                     self.header.get = False
+                    self.lock.release()
                     print 'Resend Get request'
                     self.rxpTimer.start()
             print 'Start to receive file'
@@ -274,20 +278,24 @@ class RxP:
     # Sending file to the server.
     def postFile(self, filename, event):
         if self.cntBit == 2:
+            self.lock.acquire()
             nameBytes = bytearray(filename)
             self.header.post = True
             self.header.seqNum = 0
             self.send(nameBytes)
             self.header.post = False
+            self.lock.release()
             print 'Sending Post request'
             self.rxpTimer.start()
 
             while self.postBit == 0 and not event.stopped():
                 if self.rxpTimer.isTimeout():
+                    self.lock.acquire()
                     self.header.post = True
                     self.header.seqNum = 0
                     self.send(nameBytes)
                     self.header.post = False
+                    self.lock.release()
                     print 'Resend Post request'
                     self.rxpTimer.start()
             if event.stopped():
@@ -314,6 +322,7 @@ class RxP:
                             if i == len(self.buffer) - 1:
                                 self.header.end = True
                         seq = self.rxpWindow.nextToSend
+                        self.lock.acquire()
                         self.header.seqNum = seq
                         self.header.dat = True
                         try:
@@ -323,6 +332,7 @@ class RxP:
                             sys.exit()
                         self.header.dat = False
                         self.header.end = False
+                        self.lock.release()
                         self.rxpWindow.nextToSend = seq + 1
 
                 if self.rxpWindow.nextToSend <= self.rxpWindow.endWindow and fileIndex < fileSize:
@@ -336,11 +346,13 @@ class RxP:
                     if fileIndex >= fileSize:
                         self.header.end = True
                     seq = self.rxpWindow.nextToSend
+                    self.lock.acquire()
                     self.header.seqNum = seq
                     self.header.dat = True
                     self.send(data)
                     self.header.dat = False
                     self.header.end = False
+                    self.lock.release()
                     self.rxpWindow.nextToSend = seq + 1
                     self.buffer.append(data)
 
@@ -357,6 +369,7 @@ class RxP:
 
     # Handle received data transmission packet.
     def recvDataPkt(self, packet):
+        self.lock.acquire()
         tmpHeader = self.getHeader(packet)
         if tmpHeader.ack:
             print 'Received Data ACK Num: %d' % tmpHeader.ackNum
@@ -391,6 +404,7 @@ class RxP:
                 self.header.dat = True
                 self.sendAck()
                 self.header.dat = False
+        self.lock.release()
 
     # Handle get file packet
     def recvGetPkt(self, packet):
@@ -417,6 +431,7 @@ class RxP:
 
     # Handle query packet
     def recvQueryPkt(self, packet):
+        self.lock.acquire()
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
         self.header.ackNum = seq
@@ -430,9 +445,11 @@ class RxP:
             self.header.query = True
             self.sendAck()
             self.header.query = False
+        self.lock.release()
 
     # Handle post file packet
     def recvPostPkt(self, packet):
+        self.lock.acquire()
         content = packet[RxPHeader.headerLen:]
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
@@ -458,7 +475,7 @@ class RxP:
                 print 'sending post ack'
                 self.sendAck()
                 self.header.post = False
-
+        self.lock.release()
     # receive connection establishment packet
     # 3 way handshake
     # closing wait
@@ -466,6 +483,7 @@ class RxP:
     # connectState == 2, connection established
     # connectState == 3, disconnected
     def recvCntPkt(self, packet):
+        self.lock.acquire()
         connectState = 1
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
@@ -532,6 +550,7 @@ class RxP:
                 self.header.cnt = False
             elif tmpHeader.ack:
                 self.cntBit = 0
+        self.lock.release()
         return connectState
 
     # set the window size for protocol
