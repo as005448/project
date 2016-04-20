@@ -5,13 +5,6 @@ from socket import *
 from rtp import rtp
 from threads import RecvThread
 
-#  FxAServer
-#  deals with the server side command line arguments and supports the following functions:
-#  start server
-#  Window (w) - change window size, default window size = 2
-#  terminate - terminate the server
-# host port, window size
-
 def main():
 
     print ("Server Starts")
@@ -43,27 +36,17 @@ def main():
         sys.exit()
 
     window = arg[2]
-    # netEmu port number
-    # try:
-    #     netEmuPort = int(arg[3])
-    # except ValueError:
-    #     print 'Invalid command. Please try again.'
-    #     sys.exit()
-    # validate
-    # if not 0 < netEmuPort < 65536:
-    #     print 'Invalid port number. Please try again.'
-    #     sys.exit()
 
-
+    # connect and listen to the port
     rtpProtocol = rtp(serverIP, hostPort, 0, 0, None, False)
     serverProtocol = RecvThread(rtpProtocol)
     serverProtocol.start()
     rtpProtocol.setWindowSize(window)
+
     # execute user's commend
     while (True):
         Sinput = raw_input("close - to terminate the server\n")
         if Sinput.__eq__("close"):
-            rtpProtocol.close()
             serverProtocol.stop()
             for thread in rtpProtocol.threads:
                 thread.stop()

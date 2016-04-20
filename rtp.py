@@ -1,19 +1,21 @@
 #!/usr/bin/env python
 import sys
+import unicodedata, sys
+import Queue
+import threading
 import time as stime
 from time import time
 from threads import SendThread
 from socket import *
 from collections import deque
 from crc import crc16xmodem
-import unicodedata, sys
-import Queue
-import threading
 
 class rtp:
-    dataMax = 255  # total bytes in a packet
+    dataMax = 255  # max number of bytes in a package, less than 1000!
 
-    # refer to rtpHeader class for more info
+    # udpSocket: Pass in null if it's client or server socket. Pass in the unique UDP socket from 
+    # the server socket to it's dedicated client-side socket.
+    # isClientSocket: a boolean value to indicate whatever the socket is been used for a client or a server
     def __init__(self, hostAddress, hostPort, destAddress, destPort, udpSocket, isClientSocket):
         self.dict = dict()
         self.hostAddress = hostAddress
@@ -21,32 +23,33 @@ class rtp:
         self.hostPort = hostPort
         self.destPort = destPort
         self.isClientSocket = isClientSocket
-        if (udpSocket is None) :
+        if (udpSocket is None) : # we only create UDP socket when we have not created a UDP
             self.socket = socket(AF_INET, SOCK_DGRAM)
             self.socket.bind((self.hostAddress, self.hostPort))
         else :
             self.socket = udpSocket
         self.header = rtpHeader(destPort, destPort, 0, 0)
-        self.cntBit = 0  # stands for connection state(3 way handshake)
-        self.getBit = 0  # get file
-        self.postBit = 0  # post file
-        self.queryBit = 0
+        self.cntBit = 0  #  # status for connection request
+        self.getBit = 0  # status for get request
+        self.postBit = 0  # status for post request
+        self.queryBit = 0 # status for query request
         self.rtpWindow = rtpWindow()
         self.timer = timer()
         self.buffer = deque()  # buffer to store data
         self.output = None  # output file
-        self.recvFileIndex = 0  # current index of receiving file
-        self.threads = []  # supports multiple get request
-        self.timeout = 3 * 60
+        self.recvFileIndex = 0  # index of receive file
+        self.threads = []  # keep multiple get request threads
+        self.timeout = 5
         self.newConnectionQueue = Queue.Queue()
         self.messageQueue = Queue.Queue()
         self.lock = threading.Lock()
-    #  When user type in "connect" command Establish handshake connection with
-    #  host by sending SYN messages. Handling the time out situation 
+
+    #  three handshakes connection
     #  cntBit = 0 : listening for connection 
     #  cntBit = 1 : received first SYN = 1 packet
     def connect(self):
         print 'Start to connect'
+        # send first SYN segment
         self.header.cnt = True
         self.header.syn = True
         self.header.seqNum = 0
@@ -55,6 +58,7 @@ class rtp:
         tryNumber = 3
         print 'Send first SYN segment with SYN = 1'
 
+        # resend first SYN segment
         while self.cntBit == 0 and tryNumber != 0:
             if self.timer.isTimeout():
                 tryNumber = tryNumber - 1
@@ -67,6 +71,7 @@ class rtp:
         if tryNumber == 0 and self.cntBit == 0:
             raise Exception('can not connect to the server')
 
+        # send second SYN segment
         tryNumber = 3
         while self.cntBit == 1 and tryNumber != 0:
             if self.timer.isTimeout():
@@ -555,9 +560,9 @@ class rtp:
     def setWindowSize(self, windowSize):
         if self.cntBit == 2:
             self.rtpWindow.windowSize = windowSize
-            print 'The window size is set to: %d' % windowSize
+            print 'Set window size to: %d' % windowSize
         else:
-            print 'Please initialize connection.'
+            print 'Connection needed.'
 
     # Convert the ASCII byte[] data into String
     def bytesToString(self, data):
