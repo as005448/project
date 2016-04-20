@@ -48,7 +48,7 @@ def main():
 
     connThread = None
     sThread = None
-    hostAddress = '127.0.0.3'
+    hostAddress = '127.0.0.1'
     # connect
     rtpProtocol = rtp(hostAddress, 8889, serverIP, desPort, None, True)
     clientProtocol = RecvThread(rtpProtocol)
