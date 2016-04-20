@@ -39,7 +39,7 @@ class rtp:
         self.output = None  # output file
         self.recvFileIndex = 0  # index of receive file
         self.threads = []  # keep multiple get request threads
-        self.timeout = 5
+        self.timeout = 5 * 60
         self.newConnectionQueue = Queue.Queue()
         self.messageQueue = Queue.Queue()
         self.lock = threading.Lock()
@@ -91,6 +91,7 @@ class rtp:
     #  cntBit = 2 : connection established. 
     #  cntBit = 3 : closing wait
     def close(self):
+    	# send first connection finish segment
         self.header.cnt = True
         self.header.fin = True
         self.header.seqNum = 0
@@ -98,6 +99,7 @@ class rtp:
         print 'Send first FIN segment with FIN = 1'
         self.timer.start()
 
+        # resend first connection finish segment
         while self.cntBit == 2:
             if self.timer.isTimeout():
                 self.header.fin = True
@@ -106,6 +108,7 @@ class rtp:
                 print 'Resend first FIN segment with FIN = 1'
                 self.timer.start()
 
+        # send second connection finish segment
         while self.cntBit == 3:
             if self.timer.isTimeout():
                 self.header.fin = False
@@ -118,8 +121,8 @@ class rtp:
         print '>>>>>>>>>Connection Closed<<<<<<<<<<<<'
         self.reset()
 
-    # Listening the incoming request including connect request, get, post, and
-    # data action by checking the received packet contents
+    # Listenning to a port using the UPD socket and demultiplex incomping package to 
+    # correspoding rtp socket.
     def listen(self, event):
         print 'start to listen'
         while True and not event.stopped():
@@ -160,6 +163,7 @@ class rtp:
             else:
                 print 'Received corrupted data, packet dropped.'
 
+    # the method handling demultiplex packages to the correspondent rtp sockets  
     def acceptPackage(self, address):
         clientSocket = None
         if address in self.dict:
@@ -170,17 +174,18 @@ class rtp:
             print 'create ClientSocket'
         return clientSocket
 
+    # return the most recent connection
     def accept(self):
         return self.newConnectionQueue.get(block=True)
 
     def setTimeOut(self, timeout):
         self.timeout = timeout
 
+    # return the most recent message
     def recv(self):
         return self.messageQueue.get(block=True, timeout=self.timeout)
 
     def sendAll(self, data):
-
         tryNumber = 20
         if self.cntBit == 2:
             nameBytes = bytearray(data)
@@ -191,6 +196,7 @@ class rtp:
             print 'Sending Query request'
             self.timer.start()
 
+            # resend package if it's not acked
             while self.queryBit == 0 and tryNumber != 0:
                 if self.timer.isTimeout():
                     tryNumber = tryNumber - 1
@@ -217,8 +223,7 @@ class rtp:
         self.recvFileIndex = 0
         self.output = None
 
-    #  client uses getFile method to get a file from server side protocol sends
-    #  the requested file to client side
+    #  use this method to send get file request
     def getFile(self, filename):
         if self.cntBit == 2:
             self.lock.acquire()
@@ -246,8 +251,6 @@ class rtp:
         else:
             print 'No connection found'
 
-    # Protocol send incoming data into Datagrams through UDP socket the data
-    # need to be add check sum before sending
     def send(self, data):
         print 'sending seq#: %d' % self.header.seqNum
         self.header.ack = False
@@ -255,22 +258,20 @@ class rtp:
         datagram = self.addChecksum(datagram)
         self.socket.sendto(datagram, (self.destAddress, self.destPort))
 
-    # Getting header's ack number and add check sum to this ack number then
-    # send new ACK through UDP socket
+    # send ack package
     def sendAck(self):
         print 'acking num: %d' % self.header.ackNum
         self.header.ack = True
         datagram = self.addChecksum(self.header.getHeader())
         self.socket.sendto(datagram, (self.destAddress, self.destPort))
 
-    # Getting the header information from received data
+    # extract header information from data package
     def getHeader(self, datagram):
         tmpHeader = rtpHeader()
         tmpHeader.headerFromBytes(datagram)
         return tmpHeader
 
-    # Packing header array and data array into a new array, so that we can send
-    # this new data to the UDP socket
+    # pack header and data into a package
     def pack(self,header, data):
         if data:
             result = header + data
@@ -278,7 +279,7 @@ class rtp:
         else:
             return header
 
-    # Sending file to the server.
+    # send the file to server/client
     def postFile(self, filename, event):
         if self.cntBit == 2:
             self.lock.acquire()
@@ -479,12 +480,10 @@ class rtp:
                 self.sendAck()
                 self.header.post = False
         self.lock.release()
-    # receive connection establishment packet
-    # 3 way handshake
-    # closing wait
-    # connectState == 1, nothing special
-    # connectState == 2, connection established
-    # connectState == 3, disconnected
+
+    # three way handshakes connection 
+    # connectState == 2: connection established
+    # connectState == 3: disconnected
     def recvCntPkt(self, packet):
         self.lock.acquire()
         connectState = 1
@@ -556,7 +555,7 @@ class rtp:
         self.lock.release()
         return connectState
 
-    # set the window size for protocol
+    # set the window size
     def setWindowSize(self, windowSize):
         if self.cntBit == 2:
             self.rtpWindow.windowSize = windowSize
@@ -564,12 +563,11 @@ class rtp:
         else:
             print 'Connection needed.'
 
-    # Convert the ASCII byte[] data into String
+    # Convert byte array data into String
     def bytesToString(self, data):
         return data.decode('utf-8')
 
-    # Before sending the packet, we have to add a check sum field into each
-    # packet to make sure the correction of data
+    # add checksum data into a packet
     def addChecksum(self, packet):
         data = ''
         packet[14] = 0
@@ -581,7 +579,7 @@ class rtp:
         packet[15] = checksum & 0xFF
         return packet
 
-    # Using this check sum function to check every received packet's corruption
+    # check checksum to detect packet corrupt
     def validateChecksum(self, packet):
         correct = False
         data = ''
@@ -639,7 +637,7 @@ class rtpHeader:
         self.get = False # bit for get file request
         self.post = False # bit for post file request
         self.checksum = 0 # Checksum field
-        self.query = False
+        self.query = False # bit to indecate if the package is query package
         self.header = bytearray(17) # Byte array of header for sending
 
     # convert all instance variables of rtp header into byte array

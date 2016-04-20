@@ -37,6 +37,7 @@ def main() :
     serverProtocol = RecvThread(rtpProtocol)
     serverProtocol.start()
     rtpProtocol.setWindowSize(window)
+    
     while True:
         clientSocket = rtpProtocol.accept()
         try:
