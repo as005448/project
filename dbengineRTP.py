@@ -2,7 +2,7 @@ import os
 import traceback
 import time, sys
 from socket import *
-from RxP import RxP
+from rtp import rtp
 from threads import RecvThread, SendThread
 
 # hard code database!
@@ -33,12 +33,12 @@ def main() :
     
     window = 2
     # Create a UDP socket
-    rxpProtocol = RxP(serverIP, port, 0, 0, None, False)
-    serverProtocol = RecvThread(rxpProtocol)
+    rtpProtocol = rtp(serverIP, port, 0, 0, None, False)
+    serverProtocol = RecvThread(rtpProtocol)
     serverProtocol.start()
-    rxpProtocol.setWindowSize(window)
+    rtpProtocol.setWindowSize(window)
     while True:
-        clientSocket = rxpProtocol.accept()
+        clientSocket = rtpProtocol.accept()
         try:
             data = clientSocket.recv()
             # if header of message is not "queryExecutionRequest", send error message
@@ -52,9 +52,9 @@ def main() :
         except Exception, exc:
             print(traceback.format_exc())
     
-    rxpProtocol.close()
+    rtpProtocol.close()
     serverProtocol.stop()
-    for thread in rxpProtocol.threads:
+    for thread in rtpProtocol.threads:
         thread.stop()
 
 

@@ -1,7 +1,7 @@
 import os
 import time, sys
 from socket import *
-from RxP import RxP
+from rtp import rtp
 from threads import RecvThread, SendThread
 
 def main() :
@@ -36,36 +36,36 @@ def main() :
     hostAddress = '127.0.0.2'
     window = 2
 
-    rxpProtocol = RxP(hostAddress, 7778, serverIP, desPort, None, True)
-    clientProtocol = RecvThread(rxpProtocol)
+    rtpProtocol = rtp(hostAddress, 7778, serverIP, desPort, None, True)
+    clientProtocol = RecvThread(rtpProtocol)
     clientProtocol.start()
     try:
-        rxpProtocol.connect()
+        rtpProtocol.connect()
     except Exception, e:
         print e
         clientProtocol.stop()
-        rxpProtocol.socket.close()
-        rxpProtocol = None
+        rtpProtocol.socket.close()
+        rtpProtocol = None
         return
 
-    rxpProtocol.setWindowSize(window)
-    rxpProtocol.setTimeOut(2)
+    rtpProtocol.setWindowSize(window)
+    rtpProtocol.setTimeOut(2)
     while True:
         try:
             # Send data
-            rxpProtocol.sendAll(query)
+            rtpProtocol.sendAll(query)
             # receive data and server address
-            data = rxpProtocol.recv()
+            data = rtpProtocol.recv()
             # print what we get from server
             print data[17::]
             break
         except Exception, e:
             print e
     # close socket when we finish
-    if rxpProtocol != None:
-        rxpProtocol.close()
+    if rtpProtocol != None:
+        rtpProtocol.close()
         clientProtocol.stop()
-        rxpProtocol.socket.close()
-        rxpProtocol = None
+        rtpProtocol.socket.close()
+        rtpProtocol = None
 
 if __name__ == "__main__": main()

@@ -2,7 +2,7 @@
 
 import sys
 from socket import *
-from RxP import RxP
+from rtp import rtp
 from threads import RecvThread
 
 #  FxAServer
@@ -55,17 +55,17 @@ def main():
     #     sys.exit()
 
 
-    rxpProtocol = RxP(serverIP, hostPort, 0, 0, None, False)
-    serverProtocol = RecvThread(rxpProtocol)
+    rtpProtocol = rtp(serverIP, hostPort, 0, 0, None, False)
+    serverProtocol = RecvThread(rtpProtocol)
     serverProtocol.start()
-    rxpProtocol.setWindowSize(window)
+    rtpProtocol.setWindowSize(window)
     # execute user's commend
     while (True):
         Sinput = raw_input("close - to terminate the server\n")
         if Sinput.__eq__("close"):
-            rxpProtocol.close()
+            rtpProtocol.close()
             serverProtocol.stop()
-            for thread in rxpProtocol.threads:
+            for thread in rtpProtocol.threads:
                 thread.stop()
             print ("Server is closed")
             break

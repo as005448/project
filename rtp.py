@@ -1,8 +1,9 @@
 #!/usr/bin/env python
-import time, sys
-from rxpHeader import RxPHeader
-from rxpTimer import RxPTimer
-from rxpWindow import RxPWindow
+import sys
+import time as stime
+from time import time
+from rtpHeader import rtpHeader
+from rtpWindow import rtpWindow
 from threads import SendThread
 from socket import *
 from collections import deque
@@ -11,10 +12,10 @@ import unicodedata, sys
 import Queue
 import threading
 
-class RxP:
+class rtp:
     dataMax = 255  # total bytes in a packet
 
-    # refer to rxpHeader class for more info
+    # refer to rtpHeader class for more info
     def __init__(self, hostAddress, hostPort, destAddress, destPort, udpSocket, isClientSocket):
         self.dict = dict()
         self.hostAddress = hostAddress
@@ -27,13 +28,13 @@ class RxP:
             self.socket.bind((self.hostAddress, self.hostPort))
         else :
             self.socket = udpSocket
-        self.header = RxPHeader(destPort, destPort, 0, 0)
+        self.header = rtpHeader(destPort, destPort, 0, 0)
         self.cntBit = 0  # stands for connection state(3 way handshake)
         self.getBit = 0  # get file
         self.postBit = 0  # post file
         self.queryBit = 0
-        self.rxpWindow = RxPWindow()
-        self.rxpTimer = RxPTimer()
+        self.rtpWindow = rtpWindow()
+        self.timer = timer()
         self.buffer = deque()  # buffer to store data
         self.output = None  # output file
         self.recvFileIndex = 0  # current index of receiving file
@@ -52,31 +53,31 @@ class RxP:
         self.header.syn = True
         self.header.seqNum = 0
         self.send(None)
-        self.rxpTimer.start()
+        self.timer.start()
         tryNumber = 3
         print 'Send first SYN segment with SYN = 1'
 
         while self.cntBit == 0 and tryNumber != 0:
-            if self.rxpTimer.isTimeout():
+            if self.timer.isTimeout():
                 tryNumber = tryNumber - 1
                 self.header.syn = True
                 self.header.seqNum = 0
                 self.send(None)
                 print 'Resend first SYN segment with SYN = 1'
-                self.rxpTimer.start()
+                self.timer.start()
 
         if tryNumber == 0 and self.cntBit == 0:
             raise Exception('can not connect to the server')
 
         tryNumber = 3
         while self.cntBit == 1 and tryNumber != 0:
-            if self.rxpTimer.isTimeout():
+            if self.timer.isTimeout():
                 tryNumber = tryNumber - 1
                 self.header.syn = False
                 self.header.seqNum = 1
                 self.send(None)
                 print 'Resend segment with SYN = 0'
-                self.rxpTimer.start()
+                self.timer.start()
 
         if tryNumber == 0 and self.cntBit == 1:
             raise Exception('can not connect to the server')
@@ -92,23 +93,23 @@ class RxP:
         self.header.seqNum = 0
         self.send(None)
         print 'Send first FIN segment with FIN = 1'
-        self.rxpTimer.start()
+        self.timer.start()
 
         while self.cntBit == 2:
-            if self.rxpTimer.isTimeout():
+            if self.timer.isTimeout():
                 self.header.fin = True
                 self.header.seqNum = 0
                 self.send(None)
                 print 'Resend first FIN segment with FIN = 1'
-                self.rxpTimer.start()
+                self.timer.start()
 
         while self.cntBit == 3:
-            if self.rxpTimer.isTimeout():
+            if self.timer.isTimeout():
                 self.header.fin = False
                 self.header.seqNum = 1
                 self.send(None)
                 print 'Resend first FIN segment with FIN = 0'
-                self.rxpTimer.start()
+                self.timer.start()
 
         self.header.cnt = False
         print '>>>>>>>>>Connection Closed<<<<<<<<<<<<'
@@ -161,7 +162,7 @@ class RxP:
         if address in self.dict:
             clientSocket = self.dict[address]
         else:
-            clientSocket = RxP(self.hostAddress, self.hostPort, address[0], address[1], self.socket, False)
+            clientSocket = rtp(self.hostAddress, self.hostPort, address[0], address[1], self.socket, False)
             self.dict[address] = clientSocket
             print 'create ClientSocket'
         return clientSocket
@@ -185,17 +186,17 @@ class RxP:
             self.send(nameBytes)
             self.header.query = False
             print 'Sending Query request'
-            self.rxpTimer.start()
+            self.timer.start()
 
             while self.queryBit == 0 and tryNumber != 0:
-                if self.rxpTimer.isTimeout():
+                if self.timer.isTimeout():
                     tryNumber = tryNumber - 1
                     self.header.query = True
                     self.header.seqNum = 0
                     self.send(nameBytes)
                     self.header.query = False
                     print 'Resend Query request'
-                    self.rxpTimer.start()
+                    self.timer.start()
 
             if self.queryBit == 0 and tryNumber == 0:
                 raise Exception('send unsuccess')
@@ -204,8 +205,8 @@ class RxP:
 
     # reset all setting
     def reset(self):
-        self.rxpWindow = RxPWindow()
-        self.rxpTimer = RxPTimer()
+        self.rtpWindow = rtpWindow()
+        self.timer = timer()
         self.cntBit = 0
         self.getBit = 0
         self.postBit = 0
@@ -217,7 +218,6 @@ class RxP:
     #  the requested file to client side
     def getFile(self, filename):
         if self.cntBit == 2:
-            time.sleep(.200)
             self.lock.acquire()
             nameBytes = bytearray(filename)
             self.header.get = True
@@ -226,10 +226,10 @@ class RxP:
             self.header.get = False
             self.lock.release()
             print 'Sending Get request'
-            self.rxpTimer.start()
+            self.timer.start()
 
             while self.getBit == 0:
-                if self.rxpTimer.isTimeout():
+                if self.timer.isTimeout():
                     self.lock.acquire()
                     self.header.get = True
                     self.header.seqNum = 0
@@ -237,7 +237,7 @@ class RxP:
                     self.header.get = False
                     self.lock.release()
                     print 'Resend Get request'
-                    self.rxpTimer.start()
+                    self.timer.start()
             print 'Start to receive file'
 
         else:
@@ -262,7 +262,7 @@ class RxP:
 
     # Getting the header information from received data
     def getHeader(self, datagram):
-        tmpHeader = RxPHeader()
+        tmpHeader = rtpHeader()
         tmpHeader.headerFromBytes(datagram)
         return tmpHeader
 
@@ -286,10 +286,10 @@ class RxP:
             self.header.post = False
             self.lock.release()
             print 'Sending Post request'
-            self.rxpTimer.start()
+            self.timer.start()
 
             while self.postBit == 0 and not event.stopped():
-                if self.rxpTimer.isTimeout():
+                if self.timer.isTimeout():
                     self.lock.acquire()
                     self.header.post = True
                     self.header.seqNum = 0
@@ -297,7 +297,7 @@ class RxP:
                     self.header.post = False
                     self.lock.release()
                     print 'Resend Post request'
-                    self.rxpTimer.start()
+                    self.timer.start()
             if event.stopped():
                 print 'Post file interrupted'
                 return
@@ -308,20 +308,20 @@ class RxP:
                 print ("file not found. Please type in correct filename")
                 sys.exit()
             fileBytes = bytearray(readFile.read())
-            bufferSize = RxP.dataMax - RxPHeader.headerLen
+            bufferSize = rtp.dataMax - rtpHeader.headerLen
             fileSize = len(fileBytes)
             fileIndex = 0
-            self.rxpTimer.start()
+            self.timer.start()
 
             while (fileIndex < fileSize or len(self.buffer) > 0) and not event.stopped():
-                if self.rxpTimer.isTimeout():
-                    self.rxpWindow.nextToSend = self.rxpWindow.startWindow
-                    self.rxpTimer.start()
+                if self.timer.isTimeout():
+                    self.rtpWindow.nextToSend = self.rtpWindow.startWindow
+                    self.timer.start()
                     for i in range(len(self.buffer)):
                         if fileIndex >= fileSize:
                             if i == len(self.buffer) - 1:
                                 self.header.end = True
-                        seq = self.rxpWindow.nextToSend
+                        seq = self.rtpWindow.nextToSend
                         self.lock.acquire()
                         self.header.seqNum = seq
                         self.header.dat = True
@@ -333,9 +333,9 @@ class RxP:
                         self.header.dat = False
                         self.header.end = False
                         self.lock.release()
-                        self.rxpWindow.nextToSend = seq + 1
+                        self.rtpWindow.nextToSend = seq + 1
 
-                if self.rxpWindow.nextToSend <= self.rxpWindow.endWindow and fileIndex < fileSize:
+                if self.rtpWindow.nextToSend <= self.rtpWindow.endWindow and fileIndex < fileSize:
                     data = []
                     if fileIndex + bufferSize > fileSize:
                         data = fileBytes[fileIndex:fileSize]
@@ -345,7 +345,7 @@ class RxP:
 
                     if fileIndex >= fileSize:
                         self.header.end = True
-                    seq = self.rxpWindow.nextToSend
+                    seq = self.rtpWindow.nextToSend
                     self.lock.acquire()
                     self.header.seqNum = seq
                     self.header.dat = True
@@ -353,7 +353,7 @@ class RxP:
                     self.header.dat = False
                     self.header.end = False
                     self.lock.release()
-                    self.rxpWindow.nextToSend = seq + 1
+                    self.rtpWindow.nextToSend = seq + 1
                     self.buffer.append(data)
 
             readFile.close()
@@ -374,17 +374,17 @@ class RxP:
         if tmpHeader.ack:
             print 'Received Data ACK Num: %d' % tmpHeader.ackNum
 
-            if tmpHeader.ackNum == self.rxpWindow.startWindow:
-                self.rxpTimer.start()
-                self.rxpWindow.startWindow += 1
-                self.rxpWindow.endWindow += 1
+            if tmpHeader.ackNum == self.rtpWindow.startWindow:
+                self.timer.start()
+                self.rtpWindow.startWindow += 1
+                self.rtpWindow.endWindow += 1
                 self.buffer.popleft()
         else:
             if self.output == None:
                 print 'Output is not ready'
             else:
                 if self.recvFileIndex == tmpHeader.seqNum:
-                    content = packet[RxPHeader.headerLen:]
+                    content = packet[rtpHeader.headerLen:]
                     self.output.write(content)
                     self.recvFileIndex += 1
                     self.output.flush()
@@ -417,7 +417,7 @@ class RxP:
             self.getBit = 1
         else:
             if self.getBit == 0:
-                content = packet[RxPHeader.headerLen:]
+                content = packet[rtpHeader.headerLen:]
                 uniFilename = self.bytesToString(content)
                 filename = unicodedata.normalize('NFKD', uniFilename).encode('utf-8','ignore')
                 self.getBit = 1
@@ -439,7 +439,7 @@ class RxP:
         if tmpHeader.ack:
             self.queryBit = 1
         else:
-            content = packet[RxPHeader.headerLen:]
+            content = packet[rtpHeader.headerLen:]
             query = self.bytesToString(content)
             self.messageQueue.put(query)
             self.header.query = True
@@ -450,7 +450,7 @@ class RxP:
     # Handle post file packet
     def recvPostPkt(self, packet):
         self.lock.acquire()
-        content = packet[RxPHeader.headerLen:]
+        content = packet[rtpHeader.headerLen:]
         tmpHeader = self.getHeader(packet)
         seq = tmpHeader.seqNum
         self.header.ackNum = seq
@@ -459,7 +459,7 @@ class RxP:
             if tmpHeader.ack:
                 self.postBit = 1
             else:
-                content = packet[RxPHeader.headerLen:]
+                content = packet[rtpHeader.headerLen:]
                 fileType = self.bytesToString(content).split('.', 1)[1]
                 if self.isClientSocket:
                     filename = 'get_F' + '.' + fileType
@@ -556,7 +556,7 @@ class RxP:
     # set the window size for protocol
     def setWindowSize(self, windowSize):
         if self.cntBit == 2:
-            self.rxpWindow.windowSize = windowSize
+            self.rtpWindow.windowSize = windowSize
             print 'The window size is set to: %d' % windowSize
         else:
             print 'Please initialize connection.'
@@ -594,3 +594,24 @@ class RxP:
         if msb == firstB and lsb == secondB:
             correct = True
         return correct
+
+class timer:
+    
+    def __init__(self):
+        self.time = 0
+        self.timeout = 0.6
+
+    def start(self):
+        self.time = time()
+
+#   calculate the time difference between current time
+#   and the time when timer starts, in seconds
+    def getTime(self):
+        return self.time - time()
+
+#   Checks if timeout occurs
+    def isTimeout(self):
+        if time() - self.time < self.timeout:
+            return False
+        else:
+            return True

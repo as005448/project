@@ -2,7 +2,7 @@
 
 import time, sys
 from socket import *
-from RxP import RxP
+from rtp import rtp
 from threads import RecvThread, SendThread
 
 # FxAClient
@@ -15,7 +15,7 @@ from threads import RecvThread, SendThread
 
 def main():
     window = 2
-    rxpProtocol = None
+    rtpProtocol = None
 
     # Handling the argument
     arg = sys.argv
@@ -50,11 +50,11 @@ def main():
     sThread = None
     hostAddress = '127.0.0.3'
     # connect
-    rxpProtocol = RxP(hostAddress, 8889, serverIP, desPort, None, True)
-    clientProtocol = RecvThread(rxpProtocol)
+    rtpProtocol = rtp(hostAddress, 8889, serverIP, desPort, None, True)
+    clientProtocol = RecvThread(rtpProtocol)
     clientProtocol.start()
-    rxpProtocol.connect()
-    rxpProtocol.setWindowSize(window)
+    rtpProtocol.connect()
+    rtpProtocol.setWindowSize(window)
     #execute user's commend
     while True:
         time.sleep(.500)
@@ -65,30 +65,30 @@ def main():
                     + 'quit - to quit the application\n')
         # get file form server
         if "get-post" in Sinput:
-            if rxpProtocol != None:
+            if rtpProtocol != None:
                 s = Sinput.split(' ')
-                sendThread = SendThread(rxpProtocol, s[2])
+                sendThread = SendThread(rtpProtocol, s[2])
                 sendThread.start()
-                rxpProtocol.getFile(s[1])
+                rtpProtocol.getFile(s[1])
         elif "get" in Sinput:
-            if rxpProtocol != None:
+            if rtpProtocol != None:
                 s = Sinput.split()
-                rxpProtocol.getFile(s[1])
+                rtpProtocol.getFile(s[1])
         # post file form server
         elif "post" in Sinput:
-            if rxpProtocol != None:
+            if rtpProtocol != None:
                 s = Sinput.split()
-                sendThread = SendThread(rxpProtocol, s[1])
+                sendThread = SendThread(rtpProtocol, s[1])
                 sendThread.start()
         #close connection
         elif Sinput.__eq__("disconnect"):
-            if rxpProtocol != None:
-                rxpProtocol.close()
+            if rtpProtocol != None:
+                rtpProtocol.close()
                 clientProtocol.stop()
-                rxpProtocol.socket.close()
-                rxpProtocol = None
+                rtpProtocol.socket.close()
+                rtpProtocol = None
         elif Sinput.__eq__("quit"):
-            if rxpProtocol:
+            if rtpProtocol:
                 print 'disconnect before quit'
             else:
                 break

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-# header class for RxP
-class RxPHeader:
+# header class for rtp
+class rtpHeader:
     headerLen = 17 # header length
 
     def __init__(self, sourcePort=-1, destPort=-1, seqNum=0, ackNum=0):
@@ -21,7 +21,7 @@ class RxPHeader:
         self.query = False
         self.header = bytearray(17) # Byte array of header for sending
 
-    # convert all instance variables of RxP header into byte array
+    # convert all instance variables of rtp header into byte array
     def setHeader(self):
         self.header[0] = (self.sourcePort >> 8) & 0xFF
         self.header[1] = self.sourcePort & 0xFF
@@ -35,7 +35,7 @@ class RxPHeader:
         self.header[9] = (self.ackNum) >> 16 & 0xFF
         self.header[10] = (self.ackNum) >> 8 & 0xFF
         self.header[11] = self.ackNum & 0xFF
-        self.header[12] = RxPHeader.headerLen & 0xFF
+        self.header[12] = rtpHeader.headerLen & 0xFF
         self.header[13] = 0
 
         if self.fin:
@@ -61,7 +61,7 @@ class RxPHeader:
             self.header[16] = 0x1
         return self.header
     
-    # given a byte array, convert it into a RxPHeader
+    # given a byte array, convert it into a rtpHeader
     def headerFromBytes(self, header):
         self.sourcePort = (header[0] << 8 | (0 | 0xFF)) & header[1]
         self.destPort = (header[2] << 8 | (0 | 0xFF)) & header[3]

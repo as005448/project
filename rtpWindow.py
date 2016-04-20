@@ -4,7 +4,7 @@
 # deal with window related function
 # changing window size
 # set start window, end window
-class RxPWindow:
+class rtpWindow:
 
     def __init__(self):
         self.windowSize = 2
